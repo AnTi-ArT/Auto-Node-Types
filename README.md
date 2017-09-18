@@ -1,9 +1,11 @@
-# Auto-Node-Types
+# Auto Node Types
 Inkscape extension that automatically sets the right type (cusp/smooth/symmetry) to handles of the selected path/s.
 
 Maybe there is a bug in Inkscape ~~or maybe my workflow sucks~~ (unlikely...), but I noticed that the handles sometimes lose their correct type.
-For Example after path operations or smoothing.
+For Example after deleting a node (A) or smoothing (B).
 If your handles look smooth, but for some reason are cusp - just run this extension.
+
+![a-n-types](https://user-images.githubusercontent.com/6949092/30559727-e8be8f74-9cb5-11e7-94fc-c0f601bd901c.png)
 
 ## Installation
 Copy `AutoNodeTypes.py` and `AutoNodeTypes.inx` to your Inkscape Extensions Folder.
