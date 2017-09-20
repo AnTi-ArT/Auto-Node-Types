@@ -43,83 +43,80 @@ class TemplateEffect(inkex.Effect):
 
         threshold = math.radians(self.options.threshold)
 
-        # Loop through all the selected items in Inkscape
-        for node in self.selected.iteritems():
+        # Iterate through all the selected objects in Inkscape
+        for id, node in self.selected.iteritems():
 
-            # Iterate through all the selected objects in Inkscape
-            for id, node in self.selected.iteritems():
+            # Check if the node is a path ( "svg:path" node in XML )
+            if node.tag == inkex.addNS('path', 'svg'):
+
+                # DEBUG Create the string variable which will hold the formatted data (note that '\n' defines a line break)
                 output_all = ""
-                # Check if the node is a path ( "svg:path" node in XML )
-                if node.tag == inkex.addNS('path', 'svg'):
+                output_all += "----=== Path " + node.get('id') + " ===----\n\n"
 
-                    # DEBUG. Create the string variable which will hold the formatted data (note that '\n' defines a line break)
-                    # TODO get rid of multiple outputs when multiple paths are selected
-                    output_all += "----=== Path " + node.get('id') + " ===----\n\n"
+                # get the string of all nodetypes
+                types = node.get("{http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd}nodetypes")
+                output_all += "Old Nodetypes: " + str(types) + "\n\n"
 
-                    # get the string of all nodetypes
-                    types = node.get("{http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd}nodetypes")
-                    output_all += "Old Nodetypes: " + str(types) + "\n\n"
+                # bake (or fuse) transform
+                simpletransform.fuseTransform(node)
+                # turn into cubicsuperpath
+                d = node.get('d')
+                p = cubicsuperpath.parsePath(d)
 
-                    # bake (or fuse) transform
-                    simpletransform.fuseTransform(node)
-                    # turn into cubicsuperpath
-                    d = node.get('d')
-                    p = cubicsuperpath.parsePath(d)
+                for subpath in p:  # there may be several paths joined together (e.g. holes)
 
-                    for subpath in p:  # there may be several paths joined together (e.g. holes)
+                    i = 0  # iterator for the nodetypes string
+                    new_types = ""  # new nodetype string
 
-                        i = 0  # iterator for the nodetypes string
-                        new_types = ""  # new nodetype string
+                    for csp in subpath:  # groups of three to handle control points.
 
-                        for csp in subpath:  # groups of three to handle control points.
+                        output_all += "Node # " + str(i) + ": \n"
+                        # get clean vector data for both handles
+                        vec_ax = round(csp[0][0] - csp[1][0], 2)  # we need to round them pretty much to pass 0,0 and symmetry tests
+                        vec_ay = round(csp[0][1] - csp[1][1], 2)
+                        vec_bx = round(csp[2][0] - csp[1][0], 2)
+                        vec_by = round(csp[2][1] - csp[1][1], 2)
 
-                            output_all += "Node # " + str(i) + ": \n"
-                            # get clean vector data for both handles
-                            vec_ax = round(csp[0][0] - csp[1][0], 2)  # we need to round them pretty much to pass 0,0 and symmetry tests
-                            vec_ay = round(csp[0][1] - csp[1][1], 2)
-                            vec_bx = round(csp[2][0] - csp[1][0], 2)
-                            vec_by = round(csp[2][1] - csp[1][1], 2)
-
-                            # check for 0,0 handles
-                            if ((vec_ax == vec_ay == 0.0) or (vec_bx == vec_by == 0.0)):
-                                output_all += "at least one zero handle... " + str(vec_ax + vec_ay) + " :a or b: " + str(vec_bx + vec_by) + "\n"
-                                new_types += self.options.zero
+                        # check for 0,0 handles
+                        if ((vec_ax == vec_ay == 0.0) or (vec_bx == vec_by == 0.0)):
+                            output_all += "at least one zero handle... " + str(vec_ax + vec_ay) + " :a or b: " + str(vec_bx + vec_by) + "\n"
+                            new_types += self.options.zero
+                        else:
+                            # pure Symmetry check, will do some heavy lifting with simple math
+                            if (vec_ax == -vec_bx) and (vec_ay == -vec_by):
+                                output_all += "!!! Symmetry: " + str(vec_ax) + " == (-) " + str(vec_bx) + " and " + str(vec_ay) + " == (-) " + str(vec_by) + "\n"
+                                new_types += self.options.symmetry
                             else:
-                                # pure Symmetry check, will do some heavy lifting with simple math
-                                if (vec_ax == -vec_bx) and (vec_ay == -vec_by):
-                                    output_all += "!!! Symmetry: " + str(vec_ax) + " == (-) " + str(vec_bx) + " and " + str(vec_ay) + " == (-) " + str(vec_by) + "\n"
-                                    new_types += self.options.symmetry
+                                # now that we are rid of zero handles, let's do vector magic (thanks copypaste)
+                                vec_a = np.array([vec_ax, vec_ay])  # numpy vectors
+                                vec_b = np.array([vec_bx, vec_by])
+                                output_all += "Vec A: " + str(vec_a) + " & Vec B: " + str(vec_b) + " are ... \n"
+                                vec_au = vec_a / np.linalg.norm(vec_a)  # to unit vectors
+                                vec_bu = vec_b / np.linalg.norm(vec_b)
+                                angle = round(np.arccos(np.clip(np.dot(vec_au, vec_bu), -1.0, 1.0)), 3)  # the angle between them in radians. 180 = Pi
+
+                                if angle >= threshold:
+                                    output_all += "Smooth: " + str(angle) + " angle >= threshold " + str(threshold) + "\n"
+                                    new_types += "s"  # smooth
                                 else:
-                                    # now that we are rid of zero handles, let's do vector magic (thanks copypaste)
-                                    vec_a = np.array([vec_ax, vec_ay])  # numpy vectors
-                                    vec_b = np.array([vec_bx, vec_by])
-                                    output_all += "Vec A: " + str(vec_a) + " & Vec B: " + str(vec_b) + " are ... \n"
-                                    vec_au = vec_a / np.linalg.norm(vec_a)  # to unit vectors
-                                    vec_bu = vec_b / np.linalg.norm(vec_b)
-                                    angle = round(np.arccos(np.clip(np.dot(vec_au, vec_bu), -1.0, 1.0)), 3)  # the angle between them in radians. 180 = Pi
-
-                                    if angle >= threshold:
-                                        output_all += "Smooth: " + str(angle) + " angle >= threshold " + str(threshold) + "\n"
-                                        new_types += "s"  # smooth
+                                    output_all += "not in line... \n"
+                                    if types is None:
+                                        new_types += "c"
                                     else:
-                                        output_all += "not in line... \n"
-                                        if types is None:
-                                            new_types += "c"
-                                        else:
-                                            new_types += types[i]  # get the old type.
+                                        new_types += types[i]  # get the old type.
 
-                            output_all += "\n"
-                            i += 1
-                        output_all += "New Types: " + str(new_types) + "\n"
-                        if new_types == types:
-                            output_all += ("Same as old...\n")
+                        output_all += "\n"
+                        i += 1
+                    output_all += "New Types: " + str(new_types) + "\n"
+                    if new_types == types:
+                        output_all += ("Same as old...\n")
 
-                        # apply the changes
-                        node.set("{http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd}nodetypes", new_types)
+                    # apply the changes
+                    node.set("{http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd}nodetypes", new_types)
 
-                        if self.options.debugmsg:
-                            sys.stderr.write(output_all)
-                            sys.stderr.write("\n\n\n")
+                    if self.options.debugmsg:
+                        sys.stderr.write(output_all)
+                        sys.stderr.write("\n\n\n")
 
 
 # Create effect instance and apply it.
