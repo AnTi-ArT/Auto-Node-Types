@@ -79,7 +79,8 @@ class TemplateEffect(inkex.Effect):
 
                         # check for 0,0 handles
                         if ((vec_ax == vec_ay == 0.0) or (vec_bx == vec_by == 0.0)):
-                            output_all += "at least one zero handle... " + str(vec_ax + vec_ay) + " :a or b: " + str(vec_bx + vec_by) + "\n"
+                            output_all += "at least one zero handle... "
+                            output_all += str(vec_ax) + ", " + str(vec_ay) + " :a or b: " + str(vec_bx) + ", " + str(vec_by) + "\n"
                             new_types += self.options.zero
                         else:
                             # pure Symmetry check, will do some heavy lifting with simple math
