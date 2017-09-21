@@ -17,7 +17,6 @@
         <_item value="z">Symmetric</_item>
         <_item value="a">Auto-Smooth</_item>
     </param>
-    <param name="debugmsg" type="boolean" _gui-text="Debug?">1</param>
     <effect needs-live-preview="false">
         <object-type>path</object-type>
         <effects-menu>
