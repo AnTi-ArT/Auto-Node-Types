@@ -28,16 +28,24 @@ class TemplateEffect(inkex.Effect):
                                      help="Minimum angle to smooth out (max 180)")
         self.OptionParser.add_option("--symmetry",
                                      action="store", type="string",
-                                     dest="symmetry", default='s',
+                                     dest="symmetry", default="",
                                      help="What node type to use for lined up handles with same lenght.")
         self.OptionParser.add_option("--zero",
                                      action="store", type="string",
-                                     dest="zero", default='c',
+                                     dest="zero", default="",
                                      help="What node type to use for no handles")
         self.OptionParser.add_option("--debugmsg",
                                      action="store", type="inkbool",
                                      dest="debugmsg", default=1,
                                      help="Show Debug Messages")
+
+    def cleanPath(self, path):
+        # See if the node xy-positions of the first and the two last nodes are the same
+        if (path[0][1][0] == path[-1][1][0] == path[-2][1][0]) and (path[0][1][1] == path[-1][1][1] == path[-2][1][1]):
+            path.pop()  # remove last, additional 0,0 node
+            path[0][0] = path[-1][0]  # get A Handle data from last item
+            path[-1][2] = path[0][2]  # get B Handle data from first item
+        return path
 
     def effect(self):
 
@@ -50,12 +58,10 @@ class TemplateEffect(inkex.Effect):
             if node.tag == inkex.addNS('path', 'svg'):
 
                 # DEBUG Create the string variable which will hold the formatted data (note that '\n' defines a line break)
-                output_all = ""
-                output_all += "----=== Path " + node.get('id') + " ===----\n\n"
 
                 # get the string of all nodetypes
                 types = node.get("{http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd}nodetypes")
-                output_all += "Old Nodetypes: " + str(types) + "\n\n"
+                sys.stderr.write("Old Nodetypes: " + str(types) + "\n\n")
 
                 # bake (or fuse) transform
                 simpletransform.fuseTransform(node)
@@ -63,14 +69,15 @@ class TemplateEffect(inkex.Effect):
                 d = node.get('d')
                 p = cubicsuperpath.parsePath(d)
 
+                new_types = ""  # new nodetype string
+
                 for subpath in p:  # there may be several paths joined together (e.g. holes)
+                    subpath = self.cleanPath(subpath)
+                    output_all = "----=== Path " + node.get('id') + " ===----\n\n"
 
-                    i = 0  # iterator for the nodetypes string
-                    new_types = ""  # new nodetype string
+                    for i, csp in enumerate(subpath):  # groups of three to handle control points.
 
-                    for csp in subpath:  # groups of three to handle control points.
-
-                        output_all += "Node # " + str(i) + ": \n"
+                        output_all += "Node: " + str(i) + "\n"
                         # get clean vector data for both handles
                         vec_ax = round(csp[0][0] - csp[1][0], 2)  # we need to round them pretty much to pass 0,0 and symmetry tests
                         vec_ay = round(csp[0][1] - csp[1][1], 2)
@@ -101,13 +108,10 @@ class TemplateEffect(inkex.Effect):
                                     new_types += "s"  # smooth
                                 else:
                                     output_all += "not in line... \n"
-                                    if types is None:
-                                        new_types += "c"
-                                    else:
-                                        new_types += types[i]  # get the old type.
+                                    new_types += "c"
 
                         output_all += "\n"
-                        i += 1
+
                     output_all += "New Types: " + str(new_types) + "\n"
                     if new_types == types:
                         output_all += ("Same as old...\n")
